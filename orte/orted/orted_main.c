@@ -514,7 +514,6 @@ int orte_daemon(int argc, char *argv[])
         orte_node_t *node;
         orte_app_context_t *app;
         char *tmp, *nptr, *sysinfo;
-        int32_t ljob;
         char **singenv=NULL;
 
         /* setup the singleton's job */
@@ -522,8 +521,7 @@ int orte_daemon(int argc, char *argv[])
         /* default to ompi for now */
         jdata->personality = strdup("ompi");
         orte_plm_base_create_jobid(jdata);
-        ljob = ORTE_LOCAL_JOBID(jdata->jobid);
-        opal_pointer_array_set_item(orte_job_data, ljob, jdata);
+        opal_hash_table_set_value_uint32(orte_job_data, jdata->jobid, jdata);
 
         /* must create a map for it (even though it has no
          * info in it) so that the job info will be picked
