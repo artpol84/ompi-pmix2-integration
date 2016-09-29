@@ -31,7 +31,6 @@
 #include "opal/util/output.h"
 #include "opal/util/proc.h"
 #include "opal/util/show_help.h"
-#include "opal/errhandler/opal_errhandler.h"
 
 #include "opal/mca/pmix/base/base.h"
 #include "opal/mca/pmix/base/pmix_base_fns.h"
