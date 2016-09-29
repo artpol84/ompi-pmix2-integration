@@ -244,8 +244,14 @@ opal_err2str(int errnum, const char **errmsg)
     case OPAL_ERR_SERVER_NOT_AVAIL:
         retval = "Server not available";
         break;
+    case OPAL_ERR_IN_PROCESS:
+        retval = "Operation in process";
+        break;
+    case OPAL_ERR_DEBUGGER_RELEASE:
+        retval = "Release debugger";
+        break;
     default:
-        retval = NULL;
+        retval = "UNRECOGNIZED";
     }
 
     *errmsg = retval;
