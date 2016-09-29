@@ -104,25 +104,20 @@ BEGIN_C_DECLS
 #define OPAL_PMIX_NODE_LIST                     "pmix.nlist"        // (char*) comma-delimited list of nodes running procs for this job
 #define OPAL_PMIX_TOPOLOGY                      "pmix.topo"         // (hwloc_topology_t) pointer to the PMIx client's internal topology object
 
-/* fault tolerance-related info */
-#define OPAL_PMIX_TERMINATE_SESSION             "pmix.term.sess"    // (bool) RM intends to terminate session
-#define OPAL_PMIX_TERMINATE_JOB                 "pmix.term.job"     // (bool) RM intends to terminate this job
-#define OPAL_PMIX_TERMINATE_NODE                "pmix.term.node"    // (bool) RM intends to terminate all procs on this node
-#define OPAL_PMIX_TERMINATE_PROC                "pmix.term.proc"    // (bool) RM intends to terminate just this process
-#define OPAL_PMIX_ERROR_ACTION_TIMEOUT          "pmix.err.timeout"  // (int) time in sec before RM will execute error response
-
 /* request-related info */
 #define OPAL_PMIX_COLLECT_DATA                  "pmix.collect"      // (bool) collect data and return it at the end of the operation
 #define OPAL_PMIX_TIMEOUT                       "pmix.timeout"      // (int) time in sec before specified operation should time out
 #define OPAL_PMIX_WAIT                          "pmix.wait"         // (int) caller requests that the server wait until at least the specified
-                                                            //       #values are found (0 => all and is the default)
+                                                        	    //       #values are found (0 => all and is the default)
 #define OPAL_PMIX_COLLECTIVE_ALGO               "pmix.calgo"        // (char*) comma-delimited list of algorithms to use for collective
 #define OPAL_PMIX_COLLECTIVE_ALGO_REQD          "pmix.calreqd"      // (bool) if true, indicates that the requested choice of algo is mandatory
 #define OPAL_PMIX_NOTIFY_COMPLETION             "pmix.notecomp"     // (bool) notify parent process upon termination of child job
 #define OPAL_PMIX_RANGE                         "pmix.range"        // (int) opal_pmix_data_range_t value for calls to publish/lookup/unpublish
 #define OPAL_PMIX_PERSISTENCE                   "pmix.persist"      // (int) opal_pmix_persistence_t value for calls to publish
 #define OPAL_PMIX_OPTIONAL                      "pmix.optional"     // (bool) look only in the immediate data store for the requested value - do
-                                                            //        not request data from the server if not found
+	                                                            //        not request data from the server if not found
+#define OPAL_PMIX_EMBED_BARRIER                 "pmix.embed.barrier"// (bool) execute a blocking fence operation before executing the
+                                                                    // specified operation
 
 /* attribute used by host server to pass data to the server convenience library - the
  * data will then be parsed and provided to the local clients */
@@ -134,6 +129,7 @@ BEGIN_C_DECLS
 #define OPAL_PMIX_PROC_BLOB                     "pmix.pblob"        // (pmix_byte_object_t) packed blob of process data
 #define OPAL_PMIX_MAP_BLOB                      "pmix.mblob"        // (pmix_byte_object_t) packed blob of process location
 
+/* error handler registration  and notification info keys */
 #define OPAL_PMIX_EVENT_HDLR_NAME               "pmix.evname"           // (char*) string name identifying this handler
 #define OPAL_PMIX_EVENT_JOB_LEVEL               "pmix.evjob"            // (bool) register for job-specific events only
 #define OPAL_PMIX_EVENT_ENVIRO_LEVEL            "pmix.evenv"            // (bool) register for environment events only
@@ -149,27 +145,26 @@ BEGIN_C_DECLS
 #define OPAL_PMIX_EVENT_ACTION_TIMEOUT          "pmix.evtimeout"        // (int) time in sec before RM will execute error response
 
 /* attributes used to describe "spawm" attributes */
-#define OPAL_PMIX_PERSONALITY                   "pmix.pers"         // (char*) name of personality to use
-#define OPAL_PMIX_HOST                          "pmix.host"         // (char*) comma-delimited list of hosts to use for spawned procs
-#define OPAL_PMIX_HOSTFILE                      "pmix.hostfile"     // (char*) hostfile to use for spawned procs
-#define OPAL_PMIX_ADD_HOST                      "pmix.addhost"      // (char*) comma-delimited list of hosts to add to allocation
-#define OPAL_PMIX_ADD_HOSTFILE                  "pmix.addhostfile"  // (char*) hostfile to add to existing allocation
-#define OPAL_PMIX_PREFIX                        "pmix.prefix"       // (char*) prefix to use for starting spawned procs
-#define OPAL_PMIX_WDIR                          "pmix.wdir"         // (char*) working directory for spawned procs
-#define OPAL_PMIX_MAPPER                        "pmix.mapper"       // (char*) mapper to use for placing spawned procs
-#define OPAL_PMIX_DISPLAY_MAP                   "pmix.dispmap"      // (bool) display process map upon spawn
-#define OPAL_PMIX_PPR                           "pmix.ppr"          // (char*) #procs to spawn on each identified resource
-#define OPAL_PMIX_MAPBY                         "pmix.mapby"        // (char*) mapping policy
-#define OPAL_PMIX_RANKBY                        "pmix.rankby"       // (char*) ranking policy
-#define OPAL_PMIX_BINDTO                        "pmix.bindto"       // (char*) binding policy
-#define OPAL_PMIX_PRELOAD_BIN                   "pmix.preloadbin"   // (bool) preload binaries
-#define OPAL_PMIX_PRELOAD_FILES                 "pmix.preloadfiles" // (char*) comma-delimited list of files to pre-position
-#define OPAL_PMIX_NON_PMI                       "pmix.nonpmi"       // (bool) spawned procs will not call PMIx_Init
-#define OPAL_PMIX_STDIN_TGT                     "pmix.stdin"        // (uint32_t) spawned proc rank that is to receive stdin
+#define OPAL_PMIX_PERSONALITY                   "pmix.pers"             // (char*) name of personality to use
+#define OPAL_PMIX_HOST                          "pmix.host"             // (char*) comma-delimited list of hosts to use for spawned procs
+#define OPAL_PMIX_HOSTFILE                      "pmix.hostfile"         // (char*) hostfile to use for spawned procs
+#define OPAL_PMIX_ADD_HOST                      "pmix.addhost"          // (char*) comma-delimited list of hosts to add to allocation
+#define OPAL_PMIX_ADD_HOSTFILE                  "pmix.addhostfile"      // (char*) hostfile to add to existing allocation
+#define OPAL_PMIX_PREFIX                        "pmix.prefix"           // (char*) prefix to use for starting spawned procs
+#define OPAL_PMIX_WDIR                          "pmix.wdir"             // (char*) working directory for spawned procs
+#define OPAL_PMIX_MAPPER                        "pmix.mapper"           // (char*) mapper to use for placing spawned procs
+#define OPAL_PMIX_DISPLAY_MAP                   "pmix.dispmap"          // (bool) display process map upon spawn
+#define OPAL_PMIX_PPR                           "pmix.ppr"              // (char*) #procs to spawn on each identified resource
+#define OPAL_PMIX_MAPBY                         "pmix.mapby"            // (char*) mapping policy
+#define OPAL_PMIX_RANKBY                        "pmix.rankby"           // (char*) ranking policy
+#define OPAL_PMIX_BINDTO                        "pmix.bindto"           // (char*) binding policy
+#define OPAL_PMIX_PRELOAD_BIN                   "pmix.preloadbin"       // (bool) preload binaries
+#define OPAL_PMIX_PRELOAD_FILES                 "pmix.preloadfiles"     // (char*) comma-delimited list of files to pre-position
+#define OPAL_PMIX_NON_PMI                       "pmix.nonpmi"           // (bool) spawned procs will not call PMIx_Init
+#define OPAL_PMIX_STDIN_TGT                     "pmix.stdin"            // (uint32_t) spawned proc rank that is to receive stdin
 
 
-/* define a scope for data "put" by PMI per the following - maintain
- * consistent order with the PMIx distro :
+/* define a scope for data "put" by PMI per the following:
  *
  * OPAL_PMI_LOCAL - the data is intended only for other application
  *                  processes on the same node. Data marked in this way
