@@ -17,6 +17,19 @@
 
 BEGIN_C_DECLS
 
+/* define a value for requests for job-level data
+ * where the info itself isn't associated with any
+ * specific rank, or when a request involves
+ * a rank that isn't known - e.g., when someone requests
+ * info thru one of the legacy interfaces where the rank
+ * is typically encoded into the key itself since there is
+ * no rank parameter in the API itself */
+#define OPAL_PMIX_RANK_UNDEF     INT32_MAX
+/* define a value to indicate that the user wants the
+ * data for the given key from every rank that posted
+ * that key */
+#define OPAL_PMIX_RANK_WILDCARD  INT32_MAX-1
+
 /* define a set of "standard" attributes that can
  * be queried. Implementations (and users) are free to extend as
  * desired, so the get functions need to be capable
@@ -121,21 +134,19 @@ BEGIN_C_DECLS
 #define OPAL_PMIX_PROC_BLOB                     "pmix.pblob"        // (pmix_byte_object_t) packed blob of process data
 #define OPAL_PMIX_MAP_BLOB                      "pmix.mblob"        // (pmix_byte_object_t) packed blob of process location
 
-/* error handler registration  and notification info keys */
-#define OPAL_PMIX_ERROR_NAME                    "pmix.errname"           /* enum pmix_status_t specific error to be notified */
-#define OPAL_PMIX_ERROR_GROUP_COMM              "pmix.errgroup.comm"     /* bool - set true to get comm  errors notification */
-#define OPAL_PMIX_ERROR_GROUP_ABORT             "pmix.errgroup.abort"    /* bool -set true to get abort errors notification */
-#define OPAL_PMIX_ERROR_GROUP_MIGRATE           "pmix.errgroup.migrate"  /* bool -set true to get migrate errors notification  */
-#define OPAL_PMIX_ERROR_GROUP_RESOURCE          "pmix.errgroup.resource" /* bool -set true to get resource errors notification */
-#define OPAL_PMIX_ERROR_GROUP_SPAWN             "pmix.errgroup.spawn"    /* bool - set true to get spawn errors notification */
-#define OPAL_PMIX_ERROR_GROUP_NODE              "pmix.errgroup.node"     /* bool -set true to get node status errors */
-#define OPAL_PMIX_ERROR_GROUP_LOCAL             "pmix.errgroup.local"    /* bool set true to get local errors */
-#define OPAL_PMIX_ERROR_GROUP_GENERAL           "pmix.errgroup.gen"      /* bool set true to get notified af generic errors */
-
-/* error notification keys */
-#define OPAL_PMIX_ERROR_SCOPE                   "pmix.errscope"       /* int (enum pmix_scope_t) scope of error notification*/
-#define OPAL_PMIX_ERROR_NODE_NAME               "pmix.errnode.name"   /* name of the node that is in error or which reported the error.*/
-#define OPAL_PMIX_ERROR_SEVERITY                "pmix.errseverity"    /* the severity of the notified (reported) error */
+#define OPAL_PMIX_EVENT_HDLR_NAME               "pmix.evname"           // (char*) string name identifying this handler
+#define OPAL_PMIX_EVENT_JOB_LEVEL               "pmix.evjob"            // (bool) register for job-specific events only
+#define OPAL_PMIX_EVENT_ENVIRO_LEVEL            "pmix.evenv"            // (bool) register for environment events only
+#define OPAL_PMIX_EVENT_ORDER_PREPEND           "pmix.evprepend"        // (bool) prepend this handler to the precedence list
+#define OPAL_PMIX_EVENT_CUSTOM_RANGE            "pmix.evrange"          // (pmix_proc_t*) array of pmix_proc_t defining range of event notification
+#define OPAL_PMIX_EVENT_AFFECTED_PROCS          "pmix.evaffected"       // (pmix_proc_t*) array of pmix_proc_t defining affected procs
+#define OPAL_PMIX_EVENT_NON_DEFAULT             "opal.evnondef"         // (bool) event is not to be delivered to default event handlers
+/* fault tolerance-related events */
+#define OPAL_PMIX_EVENT_TERMINATE_SESSION       "pmix.evterm.sess"      // (bool) RM intends to terminate session
+#define OPAL_PMIX_EVENT_TERMINATE_JOB           "pmix.evterm.job"       // (bool) RM intends to terminate this job
+#define OPAL_PMIX_EVENT_TERMINATE_NODE          "pmix.evterm.node"      // (bool) RM intends to terminate all procs on this node
+#define OPAL_PMIX_EVENT_TERMINATE_PROC          "pmix.evterm.proc"      // (bool) RM intends to terminate just this process
+#define OPAL_PMIX_EVENT_ACTION_TIMEOUT          "pmix.evtimeout"        // (int) time in sec before RM will execute error response
 
 /* attributes used to describe "spawm" attributes */
 #define OPAL_PMIX_PERSONALITY                   "pmix.pers"         // (char*) name of personality to use
@@ -177,17 +188,18 @@ typedef enum {
     OPAL_PMIX_GLOBAL
 } opal_pmix_scope_t;
 
-/* define a range for data "published" by PMI  - maintain
- * consistent order with the PMIx distro */
+/* define a range for data "published" by PMI */
 #define OPAL_PMIX_DATA_RANGE OPAL_UINT
 typedef enum {
-    OPAL_PMIX_DATA_RANGE_UNDEF = 0,
-    OPAL_PMIX_NAMESPACE,       // data is available to procs in the same nspace only
-    OPAL_PMIX_SESSION          // data available to all jobs in this session
+    OPAL_PMIX_RANGE_UNDEF = 0,
+    OPAL_PMIX_RANGE_LOCAL,       // available on local node only
+    OPAL_PMIX_RANGE_NAMESPACE,   // data is available to procs in the same nspace only
+    OPAL_PMIX_RANGE_SESSION,     // data available to all procs in session
+    OPAL_PMIX_RANGE_GLOBAL,      // data available to all procs
+    OPAL_PMIX_RANGE_CUSTOM       // range is specified in a opal_value_t
 } opal_pmix_data_range_t;
 
-/* define a "persistence" policy for data published by clients - maintain
- * consistent order with the PMIx distro */
+/* define a "persistence" policy for data published by clients */
 typedef enum {
     OPAL_PMIX_PERSIST_INDEF = 0,   // retain until specifically deleted
     OPAL_PMIX_PERSIST_FIRST_READ,  // delete upon first access
@@ -275,32 +287,38 @@ typedef void (*opal_pmix_lookup_cbfunc_t)(int status,
                                           opal_list_t *data,
                                           void *cbdata);
 
-/* define a callback function for the errhandler. Upon receipt of an
- * error notification, the active module will execute the specified notification
+/* define a callback function by which event handlers can notify
+ * us that they have completed their action, and pass along any
+ * further information for subsequent handlers */
+typedef void (*opal_pmix_notification_complete_fn_t)(int status, opal_list_t *results,
+                                                     opal_pmix_op_cbfunc_t cbfunc, void *thiscbdata,
+                                                     void *notification_cbdata);
+
+/* define a callback function for the evhandler. Upon receipt of an
+ * event notification, the active module will execute the specified notification
  * callback function, providing:
  *
  * status - the error that occurred
- * procs -  the nspace and ranks of the affected processes. A NULL
- *          value indicates that the error occurred in the module
- *          library within this process itself
+ * source - identity of the proc that generated the event
  * info - any additional info provided regarding the error.
- * cbfunc - callback function to execute when the errhandler is
+ * results - any info from prior event handlers
+ * cbfunc - callback function to execute when the evhandler is
  *          finished with the provided data so it can be released
  * cbdata - pointer to be returned in cbfunc
  *
  * Note that different resource managers may provide differing levels
- * of support for error notification to application processes. Thus, the
- * info list may be NULL or may contain detailed information of the error.
+ * of support for event notification to application processes. Thus, the
+ * info list may be NULL or may contain detailed information of the event.
  * It is the responsibility of the application to parse any provided info array
  * for defined key-values if it so desires.
  *
  * Possible uses of the opal_value_t list include:
  *
  * - for the RM to alert the process as to planned actions, such as
- *   to abort the session, in response to the reported error
+ *   to abort the session, in response to the reported event
  *
  * - provide a timeout for alternative action to occur, such as for
- *   the application to request an alternate response to the error
+ *   the application to request an alternate response to the event
  *
  * For example, the RM might alert the application to the failure of
  * a node that resulted in termination of several processes, and indicate
@@ -317,19 +335,19 @@ typedef void (*opal_pmix_lookup_cbfunc_t)(int status,
  * On the server side, the notification function is used to inform the host
  * server of a detected error in the PMIx subsystem and/or client */
 typedef void (*opal_pmix_notification_fn_t)(int status,
-                                            opal_list_t *procs,
-                                            opal_list_t *info,
-                                            opal_pmix_release_cbfunc_t cbfunc,
+                                            const opal_process_name_t *source,
+                                            opal_list_t *info, opal_list_t *results,
+                                            opal_pmix_notification_complete_fn_t cbfunc,
                                             void *cbdata);
 
-/* define a callback function for calls to register_errhandler. The
- * status indicates if the request was successful or not, errhandler_ref is
- * an integer reference assigned to the errhandler by PMIX, this reference
+/* define a callback function for calls to register_evhandler. The
+ * status indicates if the request was successful or not, evhandler_ref is
+ * a size_t reference assigned to the evhandler by PMIX, this reference
  * must be used to deregister the err handler. A ptr to the original
  * cbdata is returned. */
-typedef void (*opal_pmix_errhandler_reg_cbfunc_t)(int status,
-                                                  int errhandler_ref,
-                                                  void *cbdata);
+typedef void (*opal_pmix_evhandler_reg_cbfunc_t)(int status,
+                                                 size_t evhandler_ref,
+                                                 void *cbdata);
 
 /* define a callback function for calls to get_nb. The status
  * indicates if the requested data was found or not - a pointer to the

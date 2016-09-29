@@ -250,6 +250,9 @@ opal_err2str(int errnum, const char **errmsg)
     case OPAL_ERR_DEBUGGER_RELEASE:
         retval = "Release debugger";
         break;
+    case OPAL_ERR_HANDLERS_COMPLETE:
+        retval = "Event handler processing complete";
+        break;
     default:
         retval = "UNRECOGNIZED";
     }
