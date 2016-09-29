@@ -336,6 +336,11 @@ void check_complete(int fd, short args, void *cbdata)
         return;
     }
 
+    /* tell the PMIx subsystem the job is complete */
+    if (NULL != opal_pmix.server_deregister_nspace) {
+        opal_pmix.server_deregister_nspace(jdata->jobid);
+    }
+
     /* Release the resources used by this job. Since some errmgrs may want
      * to continue using resources allocated to the job as part of their
      * fault recovery procedure, we only do this once the job is "complete".
@@ -382,10 +387,6 @@ void check_complete(int fd, short args, void *cbdata)
         }
         OBJ_RELEASE(map);
         jdata->map = NULL;
-        /* tell the PMIx server to release its data */
-        if (NULL != opal_pmix.server_deregister_nspace) {
-            opal_pmix.server_deregister_nspace(jdata->jobid);
-        }
     }
 
  CHECK_ALIVE:
