@@ -168,6 +168,34 @@ void ompi_rte_abort(int error_code, char *fmt, ...)
     exit(-1);
 }
 
+static size_t handler = SIZE_MAX;
+static bool debugger_register_active = true;
+static bool debugger_event_active = true;
+
+static void _release_fn(int status,
+                        const opal_process_name_t *source,
+                        opal_list_t *info, opal_list_t *results,
+                        opal_pmix_notification_complete_fn_t cbfunc,
+                        void *cbdata)
+{
+    /* must let the notifier know we are done */
+    if (NULL != cbfunc) {
+        cbfunc(ORTE_SUCCESS, NULL, NULL, NULL, cbdata);
+    }
+    debugger_event_active = false;
+}
+
+static void _register_fn(int status,
+                         size_t evhandler_ref,
+                         void *cbdata)
+{
+    opal_list_t *codes = (opal_list_t*)cbdata;
+
+    handler = evhandler_ref;
+    OPAL_LIST_RELEASE(codes);
+    debugger_register_active = false;
+}
+
 /*
  * Wait for a debugger if asked.  We support two ways of waiting for
  * attaching debuggers -- see big comment in
@@ -177,6 +205,8 @@ void ompi_rte_abort(int error_code, char *fmt, ...)
 void ompi_rte_wait_for_debugger(void)
 {
     int debugger;
+    opal_list_t *codes;
+    opal_value_t *kv;
 
     /* See lengthy comment in orte/tools/orterun/debuggers.c about
        orte_in_parallel_debugger */
@@ -206,9 +236,22 @@ void ompi_rte_wait_for_debugger(void)
 #endif
         }
     } else {
-        /* now wait for the notification to occur */
-        OMPI_WAIT_FOR_COMPLETION(wait_for_release);
-        /* deregister the errhandler */
-        opal_pmix.deregister_errhandler(errhandler, NULL, NULL);
+        /* register an event handler for the ORTE_ERR_DEBUGGER_RELEASE event */
+        codes = OBJ_NEW(opal_list_t);
+        kv = OBJ_NEW(opal_value_t);
+        kv->key = strdup("errorcode");
+        kv->type = OPAL_INT;
+        kv->data.integer = ORTE_ERR_DEBUGGER_RELEASE;
+        opal_list_append(codes, &kv->super);
+
+        opal_pmix.register_evhandler(codes, NULL, _release_fn, _register_fn, codes);
+        /* let the MPI progress engine run while we wait for registration to complete */
+        OMPI_WAIT_FOR_COMPLETION(debugger_register_active);
+
+        /* let the MPI progress engine run while we wait for debugger release */
+        OMPI_WAIT_FOR_COMPLETION(debugger_event_active);
+
+        /* deregister the event handler */
+        opal_pmix.deregister_evhandler(handler, NULL, NULL);
     }
 }

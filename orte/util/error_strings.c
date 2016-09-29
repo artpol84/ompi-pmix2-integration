@@ -195,6 +195,8 @@ int orte_err2str(int errnum, const char **errmsg)
     case ORTE_ERR_OP_IN_PROGRESS:
         retval = "Operation in progress";
         break;
+    case ORTE_ERR_DEBUGGER_RELEASE:
+        retval = "Debugger release";
     default:
         if (orte_report_silent_errors) {
             retval = "Unknown error";
