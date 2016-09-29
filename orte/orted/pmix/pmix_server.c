@@ -85,20 +85,21 @@ static void pmix_server_dmdx_resp(int status, orte_process_name_t* sender,
 pmix_server_globals_t orte_pmix_server_globals = {0};
 
 static opal_pmix_server_module_t pmix_server = {
-    pmix_server_client_connected_fn,
-    pmix_server_client_finalized_fn,
-    pmix_server_abort_fn,
-    pmix_server_fencenb_fn,
-    pmix_server_dmodex_req_fn,
-    pmix_server_publish_fn,
-    pmix_server_lookup_fn,
-    pmix_server_unpublish_fn,
-    pmix_server_spawn_fn,
-    pmix_server_connect_fn,
-    pmix_server_disconnect_fn,
-    pmix_server_register_events_fn,
-    pmix_server_deregister_events_fn,
-    NULL
+    .client_connected = pmix_server_client_connected_fn,
+    .client_finalized = pmix_server_client_finalized_fn,
+    .abort = pmix_server_abort_fn,
+    .fence_nb = pmix_server_fencenb_fn,
+    .direct_modex = pmix_server_dmodex_req_fn,
+    .publish = pmix_server_publish_fn,
+    .lookup = pmix_server_lookup_fn,
+    .unpublish = pmix_server_unpublish_fn,
+    .spawn = pmix_server_spawn_fn,
+    .connect = pmix_server_connect_fn,
+    .disconnect = pmix_server_disconnect_fn,
+    .register_events = pmix_server_register_events_fn,
+    .deregister_events = pmix_server_deregister_events_fn,
+    .query = pmix_server_query_fn,
+    .tool_connected = pmix_tool_connected_fn
 };
 
 void pmix_server_register_params(void)
@@ -261,6 +262,12 @@ int pmix_server_init(void)
     kv->data.string = orte_build_job_session_dir(tmp, ORTE_PROC_MY_NAME, ORTE_JOBID_WILDCARD);
     opal_list_append(&info, &kv->super);
     free(tmp);
+
+    kv = OBJ_NEW(opal_value_t);
+    kv->key = strdup(OPAL_PMIX_SERVER_TOOL_SUPPORT);
+    kv->type = OPAL_BOOL;
+    kv->data.flag = true;
+    opal_list_append(&info, &kv->super);
 
     /* setup the local server */
     if (ORTE_SUCCESS != (rc = opal_pmix.server_init(&pmix_server, &info))) {
@@ -665,6 +672,9 @@ static void opcon(orte_pmix_server_op_caddy_t *p)
     p->procs = NULL;
     p->eprocs = NULL;
     p->info = NULL;
+    p->cbfunc = NULL;
+    p->infocbfunc = NULL;
+    p->toolcbfunc = NULL;
     p->cbdata = NULL;
 }
 OBJ_CLASS_INSTANCE(orte_pmix_server_op_caddy_t,
