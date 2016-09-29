@@ -81,13 +81,13 @@ int MPI_Publish_name(const char *service_name, MPI_Info info,
                 rng = OBJ_NEW(opal_value_t);
                 rng->key = strdup(OPAL_PMIX_RANGE);
                 rng->type = OPAL_INT;
-                rng->data.integer = OPAL_PMIX_NAMESPACE;  // share only with procs in same nspace
+                rng->data.integer = OPAL_PMIX_RANGE_NAMESPACE;  // share only with procs in same nspace
                 opal_list_append(&values, &rng->super);
             } else if (0 == strcmp(range, "session")) {
                 rng = OBJ_NEW(opal_value_t);
                 rng->key = strdup(OPAL_PMIX_RANGE);
                 rng->type = OPAL_INT;
-                rng->data.integer = OPAL_PMIX_SESSION; // share only with procs in same session
+                rng->data.integer = OPAL_PMIX_RANGE_SESSION; // share only with procs in same session
                 opal_list_append(&values, &rng->super);
             } else {
                 /* unrecognized scope */
